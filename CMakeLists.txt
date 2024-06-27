@@ -285,8 +285,8 @@ else()
 
     CPMAddPackage(
             NAME curl
-            URL                    https://github.com/curl/curl/releases/download/curl-8_7_1/curl-8.7.1.tar.xz
-            URL_HASH               SHA256=6fea2aac6a4610fbd0400afb0bcddbe7258a64c63f1f68e5855ebc0c659710cd # the file hash for curl-8.7.1.tar.xz
+            GITHUB_REPOSITORY maztheman/cpm-curl
+            GIT_TAG master
             OPTIONS
             "CURL_ENABLE_SSL ${CURL_ENABLE_SSL}"
             "CURL_CA_PATH ${CURL_CA_PATH}"
