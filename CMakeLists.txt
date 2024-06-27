@@ -87,6 +87,7 @@ include(FetchContent)
 include(cmake/code_coverage.cmake)
 include(cmake/sanitizer.cmake)
 include(cmake/clear_variable.cmake)
+include(cmake/CPM.cmake)
 
 # So CMake can find FindMbedTLS.cmake
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH}")
@@ -281,12 +282,21 @@ else()
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
         cmake_policy(SET CMP0135 NEW)
     endif()
-    FetchContent_Declare(curl
-                         URL                    https://github.com/curl/curl/releases/download/curl-8_7_1/curl-8.7.1.tar.xz
-                         URL_HASH               SHA256=6fea2aac6a4610fbd0400afb0bcddbe7258a64c63f1f68e5855ebc0c659710cd # the file hash for curl-8.7.1.tar.xz
-                         USES_TERMINAL_DOWNLOAD TRUE)   # <---- This is needed only for Ninja to show download progress
-    FetchContent_MakeAvailable(curl)
 
+    CPMAddPackage(
+            NAME curl
+            URL                    https://github.com/curl/curl/releases/download/curl-8_7_1/curl-8.7.1.tar.xz
+            URL_HASH               SHA256=6fea2aac6a4610fbd0400afb0bcddbe7258a64c63f1f68e5855ebc0c659710cd # the file hash for curl-8.7.1.tar.xz
+            OPTIONS
+            "CURL_ENABLE_SSL ${CURL_ENABLE_SSL}"
+            "CURL_CA_PATH ${CURL_CA_PATH}"
+            "CURL_USE_SCHANNEL ${CURL_USE_SCHANNEL}"
+            "CURL_WINDOWS_SSPI ${CURL_WINDOWS_SSPI}"
+            "CURL_USE_OPENSSL ${CURL_USE_OPENSSL}"
+            "CURL_USE_SECTRANSP ${CURL_USE_SECTRANSP}"
+            "CURL_USE_MBEDTLS ${CURL_USE_MBEDTLS}"
+            "CURL_USE_WOLFSSL ${CURL_USE_WOLFSSL}"
+    )
     restore_variable(DESTINATION CMAKE_CXX_CLANG_TIDY BACKUP CMAKE_CXX_CLANG_TIDY_BKP)
 endif()
 
