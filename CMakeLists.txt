@@ -62,6 +62,7 @@ cpr_option(CPR_FORCE_OPENSSL_BACKEND "Force to use the OpenSSL backend. If CPR_F
 cpr_option(CPR_FORCE_WINSSL_BACKEND "Force to use the WinSSL backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
 cpr_option(CPR_FORCE_DARWINSSL_BACKEND "Force to use the DarwinSSL backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
 cpr_option(CPR_FORCE_MBEDTLS_BACKEND "Force to use the Mbed TLS backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
+cpr_option(CPR_FORCE_WOLFSSL_BACKEND "Force to use the Wolf TLS backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
 cpr_option(CPR_ENABLE_LINTING "Set to ON to enable clang linting." OFF)
 cpr_option(CPR_ENABLE_CPPCHECK "Set to ON to enable Cppcheck static analysis. Requires CPR_BUILD_TESTS and CPR_BUILD_TESTS_SSL to be OFF to prevent checking google tests source code." OFF)
 cpr_option(CPR_BUILD_TESTS "Set to ON to build cpr tests." OFF)
@@ -105,7 +106,7 @@ endif()
 
 # SSL
 if(CPR_ENABLE_SSL)
-    if(CPR_FORCE_OPENSSL_BACKEND OR CPR_FORCE_WINSSL_BACKEND OR CPR_FORCE_DARWINSSL_BACKEND OR CPR_FORCE_MBEDTLS_BACKEND)
+    if(CPR_FORCE_OPENSSL_BACKEND OR CPR_FORCE_WINSSL_BACKEND OR CPR_FORCE_DARWINSSL_BACKEND OR CPR_FORCE_MBEDTLS_BACKEND OR CPR_FORCE_WOLFSSL_BACKEND)
         message(STATUS "Disabled SSL backend auto detect since either CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, or CPR_FORCE_WINSSL_BACKEND is enabled.")
         set(DETECT_SSL_BACKEND OFF CACHE INTERNAL "" FORCE)
     else()
@@ -160,6 +161,10 @@ if(CPR_ENABLE_SSL)
             message(STATUS "Using Mbed TLS.")
             set(CPR_BUILD_TESTS_SSL OFF)
             set(SSL_BACKEND_USED "MbedTLS")
+        elseif(CPR_FORCE_WOLFSSL_BACKEND)
+            message(STATUS "Using WolfSSL.")
+            set(CPR_BUILD_TESTS_SSL OFF)
+            set(SSL_BACKEND_USED "WolfSSL")
         endif()
     endif()
 endif()
@@ -253,6 +258,10 @@ else()
             set(CURL_USE_MBEDTLS ON CACHE INTERNAL "" FORCE)
         endif()
 
+        if(SSL_BACKEND_USED STREQUAL "WolfSSL")
+            set(CURL_USE_WOLFSSL ON CACHE INTERNAL "" FORCE)
+        endif()
+
         message(STATUS "Enabled curl SSL")
     else()
         set(CURL_ENABLE_SSL OFF CACHE INTERNAL "" FORCE)
@@ -263,6 +272,7 @@ else()
         set(CURL_USE_OPENSSL OFF CACHE INTERNAL "" FORCE)
         set(CURL_USE_SECTRANSP OFF CACHE INTERNAL "" FORCE)
         set(CURL_USE_MBEDTLS OFF CACHE INTERNAL "" FORCE)
+        set(CURL_USE_WOLFSSL OFF CACHE INTERNAL "" FORCE)
         message(STATUS "Disabled curl SSL")
     endif()
     # Disable linting for curl
@@ -304,13 +314,13 @@ if(CPR_BUILD_TESTS)
         FetchContent_MakeAvailable(googletest)
 
         restore_variable(DESTINATION CMAKE_CXX_CLANG_TIDY BACKUP CMAKE_CXX_CLANG_TIDY_BKP)
-        
+
         add_library(gtest_int INTERFACE)
         target_link_libraries(gtest_int INTERFACE gtest)
         target_include_directories(gtest_int INTERFACE ${googletest_SOURCE_DIR}/include)
 
         add_library(GTest::GTest ALIAS gtest_int)
-       
+
         # Group under the "tests/gtest" project folder in IDEs such as Visual Studio.
     set_property(TARGET gtest PROPERTY FOLDER "tests/gtest")
     set_property(TARGET gtest_main PROPERTY FOLDER "tests/gtest")
@@ -339,7 +349,7 @@ if(CPR_BUILD_TESTS)
     # Disable linting for mongoose
     clear_variable(DESTINATION CMAKE_CXX_CLANG_TIDY BACKUP CMAKE_CXX_CLANG_TIDY_BKP)
 
-    FetchContent_Declare(mongoose 
+    FetchContent_Declare(mongoose
                          URL                    https://github.com/cesanta/mongoose/archive/7.7.tar.gz
                          URL_HASH               SHA256=4e5733dae31c3a81156af63ca9aa3a6b9b736547f21f23c3ab2f8e3f1ecc16c0 # the hash for 7.7.tar.gz
                          USES_TERMINAL_DOWNLOAD TRUE)   # <---- This is needed only for Ninja to show download progress
