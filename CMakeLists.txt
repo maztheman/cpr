@@ -62,6 +62,7 @@ cpr_option(CPR_FORCE_OPENSSL_BACKEND "Force to use the OpenSSL backend. If CPR_F
 cpr_option(CPR_FORCE_WINSSL_BACKEND "Force to use the WinSSL backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
 cpr_option(CPR_FORCE_DARWINSSL_BACKEND "Force to use the DarwinSSL backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
 cpr_option(CPR_FORCE_MBEDTLS_BACKEND "Force to use the Mbed TLS backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
+cpr_option(CPR_FORCE_WOLFSSL_BACKEND "Force to use the Wolf TLS backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
 cpr_option(CPR_ENABLE_LINTING "Set to ON to enable clang linting." OFF)
 cpr_option(CPR_ENABLE_CPPCHECK "Set to ON to enable Cppcheck static analysis. Requires CPR_BUILD_TESTS and CPR_BUILD_TESTS_SSL to be OFF to prevent checking google tests source code." OFF)
 cpr_option(CPR_BUILD_TESTS "Set to ON to build cpr tests." OFF)
@@ -103,6 +104,7 @@ include(FetchContent)
 include(cmake/code_coverage.cmake)
 include(cmake/sanitizer.cmake)
 include(cmake/clear_variable.cmake)
+include(cmake/CPM.cmake)
 
 # So CMake can find FindMbedTLS.cmake
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake;${CMAKE_MODULE_PATH}")
@@ -122,7 +124,7 @@ endif()
 
 # SSL
 if(CPR_ENABLE_SSL)
-    if(CPR_FORCE_OPENSSL_BACKEND OR CPR_FORCE_WINSSL_BACKEND OR CPR_FORCE_DARWINSSL_BACKEND OR CPR_FORCE_MBEDTLS_BACKEND)
+    if(CPR_FORCE_OPENSSL_BACKEND OR CPR_FORCE_WINSSL_BACKEND OR CPR_FORCE_DARWINSSL_BACKEND OR CPR_FORCE_MBEDTLS_BACKEND OR CPR_FORCE_WOLFSSL_BACKEND)
         message(STATUS "Disabled SSL backend auto detect since either CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, or CPR_FORCE_WINSSL_BACKEND is enabled.")
         set(DETECT_SSL_BACKEND OFF CACHE INTERNAL "" FORCE)
     else()
@@ -177,6 +179,10 @@ if(CPR_ENABLE_SSL)
             message(STATUS "Using Mbed TLS.")
             set(CPR_BUILD_TESTS_SSL OFF)
             set(SSL_BACKEND_USED "MbedTLS")
+        elseif(CPR_FORCE_WOLFSSL_BACKEND)
+            message(STATUS "Using WolfSSL.")
+            set(CPR_BUILD_TESTS_SSL OFF)
+            set(SSL_BACKEND_USED "WolfSSL")
         endif()
     endif()
 endif()
@@ -215,7 +221,7 @@ if(CPR_USE_SYSTEM_CURL)
         endif()
     endif()
 
-    # Check for the minimum supported curl version 
+    # Check for the minimum supported curl version
     if(NOT (CURL_VERSION_STRING VERSION_GREATER_EQUAL "7.64.0"))
         message(FATAL_ERROR "Your system curl version (${CURL_VERSION_STRING}) is too old! curl >= 7.64.0 is required. Update your curl version, or use the build in curl version e.g. via `cmake .. -DCPR_USE_SYSTEM_CURL=OFF` during CMake configure.")
     endif()
@@ -276,6 +282,10 @@ else()
             set(CURL_USE_MBEDTLS ON CACHE INTERNAL "" FORCE)
         endif()
 
+        if(SSL_BACKEND_USED STREQUAL "WolfSSL")
+            set(CURL_USE_WOLFSSL ON CACHE INTERNAL "" FORCE)
+        endif()
+
         message(STATUS "Enabled curl SSL")
     else()
         set(CURL_ENABLE_SSL OFF CACHE INTERNAL "" FORCE)
@@ -286,6 +296,7 @@ else()
         set(CURL_USE_OPENSSL OFF CACHE INTERNAL "" FORCE)
         set(CURL_USE_SECTRANSP OFF CACHE INTERNAL "" FORCE)
         set(CURL_USE_MBEDTLS OFF CACHE INTERNAL "" FORCE)
+        set(CURL_USE_WOLFSSL OFF CACHE INTERNAL "" FORCE)
         message(STATUS "Disabled curl SSL")
     endif()
     # Disable linting for curl
@@ -294,12 +305,23 @@ else()
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
         cmake_policy(SET CMP0135 NEW)
     endif()
-    FetchContent_Declare(curl
-                         URL                    https://github.com/curl/curl/releases/download/curl-8_10_1/curl-8.10.1.tar.xz
-                         URL_HASH               SHA256=73a4b0e99596a09fa5924a4fb7e4b995a85fda0d18a2c02ab9cf134bebce04ee # the file hash for curl-8.10.1.tar.xz
-                         USES_TERMINAL_DOWNLOAD TRUE)   # <---- This is needed only for Ninja to show download progress
-    FetchContent_MakeAvailable(curl)
 
+    CPMAddPackage(
+            NAME curl
+            GITHUB_REPOSITORY maztheman/cpm-curl
+            GIT_TAG feature/use-cpm-wolf-ssl
+            OPTIONS
+            "CURL_ENABLE_SSL ${CURL_ENABLE_SSL}"
+            "CURL_CA_PATH ${CURL_CA_PATH}"
+            "CURL_USE_SCHANNEL ${CURL_USE_SCHANNEL}"
+            "CURL_WINDOWS_SSPI ${CURL_WINDOWS_SSPI}"
+            "CURL_USE_OPENSSL ${CURL_USE_OPENSSL}"
+            "CURL_USE_SECTRANSP ${CURL_USE_SECTRANSP}"
+            "CURL_USE_MBEDTLS ${CURL_USE_MBEDTLS}"
+            "CURL_USE_WOLFSSL ${CURL_USE_WOLFSSL}"
+            "BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS}"
+            "BUILD_STATIC_LIBS ${BUILD_STATIC_LIBS}"
+    )
     restore_variable(DESTINATION CMAKE_CXX_CLANG_TIDY BACKUP CMAKE_CXX_CLANG_TIDY_BKP)
 endif()
 
@@ -336,13 +358,13 @@ if(CPR_BUILD_TESTS)
         FetchContent_MakeAvailable(googletest)
 
         restore_variable(DESTINATION CMAKE_CXX_CLANG_TIDY BACKUP CMAKE_CXX_CLANG_TIDY_BKP)
-        
+
         add_library(gtest_int INTERFACE)
         target_link_libraries(gtest_int INTERFACE gtest)
         target_include_directories(gtest_int INTERFACE ${googletest_SOURCE_DIR}/include)
 
         add_library(GTest::GTest ALIAS gtest_int)
-       
+
         # Group under the "tests/gtest" project folder in IDEs such as Visual Studio.
     set_property(TARGET gtest PROPERTY FOLDER "tests/gtest")
     set_property(TARGET gtest_main PROPERTY FOLDER "tests/gtest")
@@ -371,7 +393,7 @@ if(CPR_BUILD_TESTS)
     # Disable linting for mongoose
     clear_variable(DESTINATION CMAKE_CXX_CLANG_TIDY BACKUP CMAKE_CXX_CLANG_TIDY_BKP)
 
-    FetchContent_Declare(mongoose 
+    FetchContent_Declare(mongoose
                          URL                    https://github.com/cesanta/mongoose/archive/7.7.tar.gz
                          URL_HASH               SHA256=4e5733dae31c3a81156af63ca9aa3a6b9b736547f21f23c3ab2f8e3f1ecc16c0 # the hash for 7.7.tar.gz
                          USES_TERMINAL_DOWNLOAD TRUE)   # <---- This is needed only for Ninja to show download progress
